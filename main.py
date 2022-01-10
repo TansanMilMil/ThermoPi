@@ -1,9 +1,17 @@
 import sys
 import time
 import smbus
+import firebase_admin
+from firebase_admin import credentials
+from firebase_admin import db
 
 i2c = smbus.SMBus(1)
 sensor_address = 0x5c
+cred = credentials.Certificate('./credentials/air-controller2-firebase-adminsdk-d3sed-4a407aafd0.json')
+firebase_admin.initialize_app(cred, {
+    'databaseURL': 'https://air-controller2.firebaseio.com'
+})
+database = db.reference('')
 
 def wake_up_sensor(address):
     try:
@@ -18,16 +26,23 @@ def read_temperature_humidity(address):
 
 if __name__ == '__main__':
     try:
-        while 1:
+        while True:
+            # センサーは無操作により自動スリープするので起動させる処理を挟む
             wake_up_sensor(sensor_address)
             time.sleep(0.003)
 
             block = read_temperature_humidity(sensor_address)
-            print(block)
+            # 人間が理解しやすいよう数値変換
             humidity = float(block[2] << 8 | block[3]) / 10
             temperature = float(block[4] << 8 | block[5]) / 10
 
             print(f'humidity: {humidity}%  temperature: {temperature}%')
-            time.sleep(1)
+            # RealtimeDatabaseに保存
+            database.update({
+                'humidity': humidity,
+                'temperature': temperature
+            })
+
+            time.sleep(60)
     except KeyboardInterrupt:
         sys.exit(0)
